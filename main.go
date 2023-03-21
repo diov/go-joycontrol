@@ -6,12 +6,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"dio.wtf/joysticker/joysticker"
+	"dio.wtf/joycontrol/joycontrol"
 	"golang.org/x/sys/unix"
 )
 
 func main() {
-	server := joysticker.NewServer()
+	server := joycontrol.NewServer()
 	server.Run()
 
 	sigCh := make(chan os.Signal, 1)

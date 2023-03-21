@@ -1,4 +1,4 @@
-package joysticker
+package joycontrol
 
 import (
 	"bufio"
@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"dio.wtf/joysticker/joysticker/log"
+	"dio.wtf/joycontrol/joycontrol/log"
 	"github.com/muka/go-bluetooth/hw/linux/cmd"
 )
 

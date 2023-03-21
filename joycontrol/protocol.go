@@ -1,11 +1,11 @@
-package joysticker
+package joycontrol
 
 import (
 	"errors"
 	"syscall"
 	"time"
 
-	"dio.wtf/joysticker/joysticker/log"
+	"dio.wtf/joycontrol/joycontrol/log"
 	"golang.org/x/sys/unix"
 )
 
@@ -14,6 +14,7 @@ type Protocol struct {
 	elapsed            int64
 	reportReceived     bool
 	deviceInfoRequired bool
+	imuEnabled         bool
 
 	queue  chan *InputReport
 	output *OutputReport
@@ -48,24 +49,17 @@ func (p *Protocol) sendEmptyReport() {
 	ticker := time.NewTicker(time.Second)
 
 	<-ticker.C
-	input := &InputReport{}
-	input.reset()
-	input.setReportId(StandardFullMode)
-	p.queue <- input
+	p.processStandardFullReport()
 	ticker.Stop()
 }
 
 func (p *Protocol) processInputQueue() {
 	for {
-		select {
-		case input := <-p.queue:
-			if _, err := unix.Write(p.itr, input.data[:]); nil != err {
-				log.ErrorF("error writing input report: %v", err)
-			} else {
-				log.DebugF("input report written %s", input)
-			}
-			// default:
-			// log.Debug("no input report to write")
+		input := <-p.queue
+		if _, err := unix.Write(p.itr, input.data[:]); nil != err {
+			log.ErrorF("error writing input report: %v", err)
+		} else {
+			log.DebugF("input report written %s", input)
 		}
 	}
 }
@@ -103,6 +97,14 @@ func (p *Protocol) readOutputReport() {
 	}
 }
 
+func (p Protocol) processStandardFullReport() {
+	input := &InputReport{}
+	input.reset()
+	input.setReportId(StandardFullMode)
+	input.setImuData(p.imuEnabled)
+	p.queue <- input
+}
+
 func (p *Protocol) processSubcommandReport(report *OutputReport) {
 	p.updateTimer()
 
@@ -125,9 +127,15 @@ func (p *Protocol) processSubcommandReport(report *OutputReport) {
 	case SetPlayerLights:
 		p.answerSetPlayerLights()
 	case EnableImu:
-		p.answerEnableImu()
+		p.answerEnableImu(report.getSubcommandData())
 	case EnableVibration:
 		p.answerEnableVibration()
+	default:
+		// Currently set so that the controller ignores any unknown
+		// subcommands. This is better than sending a NACK response
+		// since we'd just get stuck in an infinite loop arguing
+		// with the Switch.
+		p.processStandardFullReport()
 	}
 }
 
@@ -208,7 +216,11 @@ func (p *Protocol) answerSetPlayerLights() {
 	p.queue <- report
 }
 
-func (p *Protocol) answerEnableImu() {
+func (p *Protocol) answerEnableImu(data []byte) {
+	if data[0] == 0x01 {
+		p.imuEnabled = true
+	}
+
 	report := &InputReport{}
 	report.reset()
 	report.setReportId(SubcommandReplies)

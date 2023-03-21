@@ -1,4 +1,4 @@
-package joysticker
+package joycontrol
 
 import (
 	"errors"
@@ -41,11 +41,24 @@ func (i *InputReport) setReportId(id InputReportId) {
 	i.data[1] = byte(id)
 }
 
+func (i *InputReport) setImuData(enabled bool) {
+	if !enabled {
+		return
+	}
+
+	data := []byte{
+		0x75, 0xFD, 0xFD, 0xFF, 0x09, 0x10, 0x21, 0x00, 0xD5, 0xFF,
+		0xE0, 0xFF, 0x72, 0xFD, 0xF9, 0xFF, 0x0A, 0x10, 0x22, 0x00,
+		0xD5, 0xFF, 0xE0, 0xFF, 0x76, 0xFD, 0xFC, 0xFF, 0x09, 0x10,
+		0x23, 0x00, 0xD5, 0xFF, 0xE0, 0xFF}
+	copy(i.data[14:14+len(data)], data)
+}
+
 func (i *InputReport) fillStandardData(elapsed int64, queryDeviceIno bool) {
 	i.data[2] = byte(elapsed)
 
 	if queryDeviceIno {
-		i.data[3] = 0x90 + 0x00 // Battery level + Connection info
+		i.data[3] = 0x90 + 0x00 // Battery level + Connection info(Pro Controller)
 
 		i.data[4] = 0x00 // Button state
 		i.data[5] = 0x00

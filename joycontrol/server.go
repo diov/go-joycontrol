@@ -1,10 +1,10 @@
-package joysticker
+package joycontrol
 
 import (
 	_ "embed"
 	"net"
 
-	"dio.wtf/joysticker/joysticker/log"
+	"dio.wtf/joycontrol/joycontrol/log"
 	"github.com/godbus/dbus/v5"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"

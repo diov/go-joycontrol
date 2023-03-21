@@ -1,4 +1,4 @@
-package joysticker
+package joycontrol
 
 import (
 	"errors"
@@ -14,16 +14,12 @@ func SetupSocket(addr string, channel uint16) (fd int, err error) {
 		err = fmt.Errorf("unix.Socket %s", err)
 		return
 	}
-	// if err = unix.SetNonblock(fd, true); nil != err {
-	// 	err = fmt.Errorf("unix.SetNonblock %s", err)
-	// 	return
-	// }
 	if err = unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_REUSEADDR, 1); nil != err {
 		err = fmt.Errorf("unix.SetsockoptInt %s", err)
 		return
 	}
 
-	sa, _ := ParseBluetoothSockaddr(addr, channel)
+	sa, _ := ParseSockaddr(addr, channel)
 	if err = unix.Bind(fd, sa); nil != err {
 		err = fmt.Errorf("unix.Bind %s", err)
 		return
@@ -37,7 +33,7 @@ func SetupSocket(addr string, channel uint16) (fd int, err error) {
 
 var errInvalidMAC = errors.New("bluetooth: Bad MAC address")
 
-func ParseBluetoothSockaddr(addr string, channel uint16) (unix.Sockaddr, error) {
+func ParseSockaddr(addr string, channel uint16) (unix.Sockaddr, error) {
 	hwAddr, _ := net.ParseMAC(addr)
 	var d [6]byte
 	if len(hwAddr) != 6 {

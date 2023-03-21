@@ -1,4 +1,4 @@
-package joysticker
+package joycontrol
 
 import (
 	"fmt"

@@ -1,4 +1,4 @@
-module dio.wtf/joysticker
+module dio.wtf/joycontrol
 
 go 1.19
 

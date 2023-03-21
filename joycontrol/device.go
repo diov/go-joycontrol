@@ -1,9 +1,9 @@
-package joysticker
+package joycontrol
 
 import (
 	"strings"
 
-	"dio.wtf/joysticker/joysticker/log"
+	"dio.wtf/joycontrol/joycontrol/log"
 	"github.com/godbus/dbus/v5"
 	"github.com/muka/go-bluetooth/bluez"
 	"github.com/muka/go-bluetooth/bluez/profile/adapter"
