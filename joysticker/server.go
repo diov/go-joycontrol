@@ -1,37 +1,83 @@
 package joysticker
 
 import (
+	_ "embed"
+	"net"
+
 	"dio.wtf/joysticker/joysticker/log"
 	"github.com/godbus/dbus/v5"
+	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
 
-const responseDataLength = 50
+//go:embed sdp/controller.xml
+var sdpRecord string
+
+const (
+	GAMEPAD_CLASS = "0x002508"
+	HID_PATH      = "/joysticker/controller"
+
+	ALIAS = "Pro Controller"
+)
 
 type Server struct {
-	device     *Device
-	controller *Controller
-	needWatch  bool
+	device    *Device
+	protocol  *Protocol
+	needWatch bool
 }
 
 func NewServer() *Server {
 	device, _ := NewDevice()
-	controller := &Controller{Device: device}
+	protocol := NewProtocol()
 	return &Server{
-		device:     device,
-		controller: controller,
+		device:   device,
+		protocol: protocol,
 	}
 }
 
 func (s *Server) Run() {
 	toggleCleanBluez(true)
+	addr, _ := s.device.GetAddress()
+	mac, _ := net.ParseMAC(addr)
 
-	s.controller.Setup()
-	s.Connect()
+	s.Setup()
+	itr, ctrl := s.Connect()
+	s.protocol.Setup(itr, ctrl, mac)
 }
 
-func (s *Server) Connect() {
+func (s *Server) Setup() (err error) {
+	if err = s.device.SetPowered(true); nil != err {
+		log.Error(err)
+	}
+	if err = s.device.SetPairable(true); nil != err {
+		log.Error(err)
+	}
+	if err = s.device.SetPairableTimeout(0); nil != err {
+		log.Error(err)
+	}
+	if err = s.device.SetDiscoverableTimeout(180); nil != err {
+		log.Error(err)
+	}
+	if err = s.device.SetAlias(ALIAS); nil != err {
+		log.Error(err)
+	} else {
+		log.Debug("setting device name to Pro Controller...")
+	}
+
+	options := map[string]interface{}{
+		"ServiceRecord":         sdpRecord,
+		"Role":                  "server",
+		"RequireAuthentication": false,
+		"RequireAuthorization":  false,
+		"AutoConnect":           true,
+	}
+	sdpUuid := uuid.NewString()
+	err = s.device.RegisterProfile(HID_PATH, sdpUuid, options)
+	return
+}
+
+func (s *Server) Connect() (int, int) {
 	addr, _ := s.device.GetAddress()
 	log.DebugF("MAC: %s", addr)
 
@@ -44,16 +90,24 @@ func (s *Server) Connect() {
 		log.Error(err)
 	}
 	s.device.SetDiscoverable(true)
-	s.device.SetClass("0x002508")
+	s.device.SetClass(GAMEPAD_CLASS)
 
 	s.needWatch = true
 	go s.watchConnReset()
 
-	_, itrAddr, err := unix.Accept(itrSock)
-	log.DebugF("Accept interupt from %v %v", itrAddr, err)
-	_, ctrlAddr, err := unix.Accept(ctrlSock)
-	log.DebugF("Accept control from %v %v", ctrlAddr, err)
+	itr, itrAddr, _ := unix.Accept(itrSock)
+	itrL2Addr := itrAddr.(*unix.SockaddrL2)
+	log.DebugF("Accept interrupt %d from %v %d", itr, itrAddr, itrL2Addr.PSM)
+	ctrl, ctrlAddr, _ := unix.Accept(ctrlSock)
+	ctrlL2Addr := ctrlAddr.(*unix.SockaddrL2)
+	log.DebugF("Accept control %d from %v %d", ctrl, ctrlAddr, ctrlL2Addr.PSM)
 	s.needWatch = false
+
+	// stop advertising
+	s.device.SetDiscoverable(false)
+	s.device.SetPairable(false)
+
+	return itr, ctrl
 }
 
 func (s *Server) watchConnReset() {
@@ -67,7 +121,7 @@ func (s *Server) watchConnReset() {
 			s.device.SetPairable(true)
 			s.device.SetPairableTimeout(0)
 			s.device.SetDiscoverable(true)
-			s.device.SetClass("0x02508")
+			s.device.SetClass(GAMEPAD_CLASS)
 		}
 		paths, _ := s.device.FindConnectedAdapter()
 
@@ -99,7 +153,7 @@ func (s *Server) watchConnReset() {
 		if len(disconnectRecord) > 0 {
 			for k, v := range disconnectRecord {
 				if v >= 2 {
-					log.DebugF("A Nintendo Switch disconnected. Resetting Connection %s...", k)
+					log.DebugF("A Nintendo Switch disconnected. Resetting Connection...Removing %s", k)
 					if err := s.device.RemoveDevice(dbus.ObjectPath(k)); nil != err {
 						log.DebugF("Remove device failed: %v", err)
 					}

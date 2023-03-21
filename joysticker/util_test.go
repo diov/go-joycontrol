@@ -1,16 +1,33 @@
 package joysticker
 
 import (
+	"net"
 	"testing"
+	"time"
 )
 
 func TestParseBluetoothSockaddr(t *testing.T) {
-	// CC:BB:AA:33:22:11
-	// [6]byte{0x11, 0x22, 0x33, 0xaa, 0xbb, 0xcc}
-	// addr := "CC:BB:AA:33:22:11"
-	// bleAddr := ParseBluetoothSockaddr(addr, 16)
+	// 0xDC 0xA6 0x32 0xC4 0xDC 0x93
+	// bytes := []byte{0xDC, 0xA6, 0x32, 0xC4, 0xDC, 0x93}
+	addr := "DC:A6:32:C4:DC:93"
+	hwAddr, _ := net.ParseMAC(addr)
 
-	// if bleAddr.Addr != [6]byte{0x11, 0x22, 0x33, 0xaa, 0xbb, 0xcc} {
-	// 	t.Errorf("Invalidate address")
-	// }
+	t.Log(hwAddr)
+	t.Log([]byte(hwAddr))
+}
+
+func TestSliceReplace(t *testing.T) {
+	slice := []int{1, 1, 1, 1, 1, 1}
+	new := []int{2, 2, 2}
+	copy(slice[2:4], new)
+	t.Log(slice)
+}
+
+func TestUpdateTimer(t *testing.T) {
+	lastTime := time.Now()
+	time.Sleep(4 * time.Second)
+	now := time.Now()
+	duration := now.Sub(lastTime)
+	elapsed := int64(duration*4) & 0xFF
+	t.Log(elapsed)
 }
