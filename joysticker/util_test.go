@@ -1,7 +1,9 @@
 package joysticker
 
 import (
+	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 )
@@ -16,11 +18,14 @@ func TestParseBluetoothSockaddr(t *testing.T) {
 	t.Log([]byte(hwAddr))
 }
 
-func TestSliceReplace(t *testing.T) {
-	slice := []int{1, 1, 1, 1, 1, 1}
-	new := []int{2, 2, 2}
-	copy(slice[2:4], new)
-	t.Log(slice)
+func TestHexString(t *testing.T) {
+	data := []byte{1, 0, 255, 0, 8, 0, 27, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 200}
+
+	var hex []string
+	for _, d := range data {
+		hex = append(hex, fmt.Sprintf("0x%02X ", d))
+	}
+	t.Log(strings.Join(hex, ","))
 }
 
 func TestUpdateTimer(t *testing.T) {

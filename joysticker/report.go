@@ -41,10 +41,6 @@ func (i *InputReport) setReportId(id InputReportId) {
 	i.data[1] = byte(id)
 }
 
-func (i *InputReport) updateTimer(elapsed int64) {
-	i.data[2] = byte(elapsed)
-}
-
 func (i *InputReport) fillStandardData(elapsed int64, queryDeviceIno bool) {
 	i.data[2] = byte(elapsed)
 
@@ -90,12 +86,12 @@ func (i *InputReport) ackDeviceInfo(mac []byte) {
 }
 
 func (i *InputReport) ackTriggerButtonsElapsedTime() {
-	i.data[14] = 0x83                            // ACK without data
+	i.data[14] = 0x83                            // ACK
 	i.data[15] = byte(TriggerButtonsElapsedTime) // Subcommand Reply
 }
 
 func (i *InputReport) ackSetShipmentLowPowerState() {
-	i.data[14] = 0x80                           // ACK without data
+	i.data[14] = 0x80                           // ACK
 	i.data[15] = byte(SetShipmentLowPowerState) // Subcommand Reply
 }
 
@@ -105,7 +101,7 @@ func (i *InputReport) ackSpiFlashRead(data []byte) {
 	highEnd := data[1]
 	sectionRange := data[4]
 
-	i.data[14] = 0x90               // Special ACK
+	i.data[14] = 0x90               // ACK
 	i.data[15] = byte(SpiFlashRead) // Subcommand Reply
 
 	i.data[16] = lowEnd       // Low byte in Little-Endian address
@@ -144,6 +140,41 @@ func (i *InputReport) ackSpiFlashRead(data []byte) {
 		// Factory configuration & calibration 1
 		replaceSlice(i.data[:], 21, 21+int(sectionRange), 0xFF)
 	}
+}
+
+func (i *InputReport) ackSetNfcMcuConfig() {
+	i.data[14] = 0xA0                  // ACK
+	i.data[15] = byte(SetNfcMcuConfig) // Subcommand Reply
+
+	data := []byte{
+		0x01, 0x00, 0xFF, 0x00, 0x08, 0x00,
+		0x1B, 0x01, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0xC8}
+	copy(i.data[16:16+len(data)], data)
+}
+
+func (i *InputReport) ackSetNfcMcuState() {
+	i.data[14] = 0x80                 // ACK
+	i.data[15] = byte(SetNfcMcuState) // Subcommand Reply
+}
+
+func (i *InputReport) ackSetPlayerLights() {
+	i.data[14] = 0x80                  // ACK
+	i.data[15] = byte(SetPlayerLights) // Subcommand Reply
+}
+
+func (i *InputReport) ackEnableImu() {
+	// TODO: Toggle IMU
+	i.data[14] = 0x80            // ACK
+	i.data[15] = byte(EnableImu) // Subcommand Reply
+}
+
+func (i *InputReport) ackEnableVibration() {
+	i.data[14] = 0x82                  // ACK
+	i.data[15] = byte(EnableVibration) // Subcommand Reply
 }
 
 func (i *InputReport) String() string {
@@ -188,10 +219,10 @@ const (
 	TriggerButtonsElapsedTime Subcommand = 0x04
 	SetShipmentLowPowerState  Subcommand = 0x08
 	SpiFlashRead              Subcommand = 0x10
-	SetNFCMCUConfiguration    Subcommand = 0x21
-	SetNFCMCUState            Subcommand = 0x22
+	SetNfcMcuConfig           Subcommand = 0x21
+	SetNfcMcuState            Subcommand = 0x22
 	SetPlayerLights           Subcommand = 0x30
-	EnableIMU                 Subcommand = 0x40
+	EnableImu                 Subcommand = 0x40
 	EnableVibration           Subcommand = 0x48
 )
 

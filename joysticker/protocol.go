@@ -109,7 +109,6 @@ func (p *Protocol) processSubcommandReport(report *OutputReport) {
 	subcommand := report.getSubcommand()
 	switch subcommand {
 	case RequestDeviceInfo:
-		p.deviceInfoRequired = true
 		p.answerDeviceInfo()
 	case SetInputReportMode:
 		p.answerSetMode(report.getSubcommandData())
@@ -119,10 +118,14 @@ func (p *Protocol) processSubcommandReport(report *OutputReport) {
 		p.answerSetShipmentState()
 	case SpiFlashRead:
 		p.answerSpiRead(report.getSubcommandData())
-	case SetNFCMCUConfiguration:
-	case SetNFCMCUState:
+	case SetNfcMcuConfig:
+		p.answerSetNfcMcuConfig(report.getSubcommandData())
+	case SetNfcMcuState:
+		p.answerSetNfcMcuState(report.getSubcommandData())
 	case SetPlayerLights:
-	case EnableIMU:
+		p.answerSetPlayerLights()
+	case EnableImu:
+		p.answerEnableImu()
 	case EnableVibration:
 		p.answerEnableVibration()
 	}
@@ -148,6 +151,8 @@ func (p *Protocol) anwserTriggerButtonsElapsedTime() {
 }
 
 func (p *Protocol) answerDeviceInfo() {
+	p.deviceInfoRequired = true
+
 	report := &InputReport{}
 	report.reset()
 	report.setReportId(SubcommandReplies)
@@ -171,6 +176,44 @@ func (p *Protocol) answerSpiRead(data []byte) {
 	report.setReportId(SubcommandReplies)
 	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
 	report.ackSpiFlashRead(data)
+	p.queue <- report
+}
+
+func (p *Protocol) answerSetNfcMcuConfig(data []byte) {
+	// TODO: Update NFC MCU config
+	report := &InputReport{}
+	report.reset()
+	report.setReportId(SubcommandReplies)
+	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
+	report.ackSetNfcMcuConfig()
+	p.queue <- report
+}
+
+func (p *Protocol) answerSetNfcMcuState(data []byte) {
+	// TODO: Update NFC MCU State
+	report := &InputReport{}
+	report.reset()
+	report.setReportId(SubcommandReplies)
+	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
+	report.ackSetNfcMcuState()
+	p.queue <- report
+}
+
+func (p *Protocol) answerSetPlayerLights() {
+	report := &InputReport{}
+	report.reset()
+	report.setReportId(SubcommandReplies)
+	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
+	report.ackSetPlayerLights()
+	p.queue <- report
+}
+
+func (p *Protocol) answerEnableImu() {
+	report := &InputReport{}
+	report.reset()
+	report.setReportId(SubcommandReplies)
+	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
+	report.ackEnableImu()
 	p.queue <- report
 }
 
