@@ -26,22 +26,14 @@ const (
 	InputReportLength int = 50
 )
 
-var emptyInputReport = [InputReportLength]byte{0xA1}
-
 // InputReport represents report sent from the Controller to the Switch.
-type InputReport struct {
-	data [InputReportLength]byte
+type InputReport []byte
+
+func (i InputReport) setReportId(id InputReportId) {
+	i[1] = byte(id)
 }
 
-func (i *InputReport) reset() {
-	copy(i.data[:], emptyInputReport[:])
-}
-
-func (i *InputReport) setReportId(id InputReportId) {
-	i.data[1] = byte(id)
-}
-
-func (i *InputReport) setImuData(enabled bool) {
+func (i InputReport) setImuData(enabled bool) {
 	if !enabled {
 		return
 	}
@@ -51,91 +43,91 @@ func (i *InputReport) setImuData(enabled bool) {
 		0xE0, 0xFF, 0x72, 0xFD, 0xF9, 0xFF, 0x0A, 0x10, 0x22, 0x00,
 		0xD5, 0xFF, 0xE0, 0xFF, 0x76, 0xFD, 0xFC, 0xFF, 0x09, 0x10,
 		0x23, 0x00, 0xD5, 0xFF, 0xE0, 0xFF}
-	copy(i.data[14:14+len(data)], data)
+	copy(i[14:14+len(data)], data)
 }
 
-func (i *InputReport) fillStandardData(elapsed int64, queryDeviceIno bool) {
-	i.data[2] = byte(elapsed)
+func (i InputReport) fillStandardData(elapsed int64, queryDeviceIno bool) {
+	i[2] = byte(elapsed)
 
 	if queryDeviceIno {
-		i.data[3] = 0x90 + 0x00 // Battery level + Connection info(Pro Controller)
+		i[3] = 0x90 + 0x00 // Battery level + Connection info(Pro Controller)
 
-		i.data[4] = 0x00 // Button state
-		i.data[5] = 0x00
-		i.data[6] = 0x00
+		i[4] = 0x00 // Button state
+		i[5] = 0x00
+		i[6] = 0x00
 
-		i.data[7] = 0x00 // Left Stick state
-		i.data[8] = 0x00
-		i.data[9] = 0x00
+		i[7] = 0x00 // Left Stick state
+		i[8] = 0x00
+		i[9] = 0x00
 
-		i.data[10] = 0x00 // Right Stick state
-		i.data[11] = 0x00
-		i.data[12] = 0x00
+		i[10] = 0x00 // Right Stick state
+		i[11] = 0x00
+		i[12] = 0x00
 
-		i.data[13] = 0x80 // Vibrator
+		i[13] = 0x80 // Vibrator
 	}
 }
 
-func (i *InputReport) ackSetInputReportMode() {
-	i.data[14] = 0x80                     // ACK without data
-	i.data[15] = byte(SetInputReportMode) // Subcommand Reply
+func (i InputReport) ackSetInputReportMode() {
+	i[14] = 0x80                     // ACK without data
+	i[15] = byte(SetInputReportMode) // Subcommand Reply
 }
 
-func (i *InputReport) ackDeviceInfo(mac []byte) {
-	i.data[14] = 0x82                    // ACK with data
-	i.data[15] = byte(RequestDeviceInfo) // Subcommand Reply
+func (i InputReport) ackDeviceInfo(mac []byte) {
+	i[14] = 0x82                    // ACK with data
+	i[15] = byte(RequestDeviceInfo) // Subcommand Reply
 
-	i.data[16] = 0x03 // Firmware version
-	i.data[17] = 0x8B
+	i[16] = 0x03 // Firmware version
+	i[17] = 0x8B
 
-	i.data[18] = 0x03 // Pro Controller
+	i[18] = 0x03 // Pro Controller
 
-	i.data[19] = 0x02 // Unknown Byte, always 2
+	i[19] = 0x02 // Unknown Byte, always 2
 
-	copy(i.data[20:26], mac)
+	copy(i[20:26], mac)
 
-	i.data[26] = 0x01 // Unknown byte, always 1
-	i.data[27] = 0x01 // Controller colours location
+	i[26] = 0x01 // Unknown byte, always 1
+	i[27] = 0x01 // Controller colours location
 }
 
-func (i *InputReport) ackTriggerButtonsElapsedTime() {
-	i.data[14] = 0x83                            // ACK
-	i.data[15] = byte(TriggerButtonsElapsedTime) // Subcommand Reply
+func (i InputReport) ackTriggerButtonsElapsedTime() {
+	i[14] = 0x83                            // ACK
+	i[15] = byte(TriggerButtonsElapsedTime) // Subcommand Reply
 }
 
-func (i *InputReport) ackSetShipmentLowPowerState() {
-	i.data[14] = 0x80                           // ACK
-	i.data[15] = byte(SetShipmentLowPowerState) // Subcommand Reply
+func (i InputReport) ackSetShipmentLowPowerState() {
+	i[14] = 0x80                           // ACK
+	i[15] = byte(SetShipmentLowPowerState) // Subcommand Reply
 }
 
-// https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/spi_flash_notes.md#x6000-factory-configuration-and-calibration
-func (i *InputReport) ackSpiFlashRead(data []byte) {
+// https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/spi_flash_notes.md
+func (i InputReport) ackSpiFlashRead(data []byte) {
 	lowEnd := data[0]
 	highEnd := data[1]
 	sectionRange := data[4]
 
-	i.data[14] = 0x90               // ACK
-	i.data[15] = byte(SpiFlashRead) // Subcommand Reply
+	i[14] = 0x90               // ACK
+	i[15] = byte(SpiFlashRead) // Subcommand Reply
 
-	i.data[16] = lowEnd       // Low byte in Little-Endian address
-	i.data[17] = highEnd      // High byte in Little-Endian address
-	i.data[20] = sectionRange // Section range
+	i[16] = lowEnd       // Low byte in Little-Endian address
+	i[17] = highEnd      // High byte in Little-Endian address
+	i[20] = sectionRange // Section range
 
 	if lowEnd == 0x00 && highEnd == 0x60 {
 		// Serial number
-		replaceSlice(i.data[:], 21, 21+int(sectionRange), 0xFF)
+		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	} else if lowEnd == 0x50 && highEnd == 0x60 {
 		// Body #RGB color
-		replaceSlice(i.data[:], 21, 21+int(sectionRange), 0xFF)
+		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	} else if lowEnd == 0x80 && highEnd == 0x60 {
 		// Factory Sensor and Stick device parameters
-		replaceSlice(i.data[:], 21, 21+int(sectionRange), 0xFF)
+		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	} else if lowEnd == 0x98 && highEnd == 0x60 {
 		// Factory Stick device parameters 2
-		replaceSlice(i.data[:], 21, 21+int(sectionRange), 0xFF)
+		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	} else if lowEnd == 0x10 && highEnd == 0x80 {
 		// User Analog sticks calibration
-		replaceSlice(i.data[:], 21, 21+int(sectionRange), 0xFF)
+		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	} else if lowEnd == 0x3D && highEnd == 0x60 {
 		// Factory configuration & calibration 2
 		leftCalibration := []byte{
@@ -146,18 +138,18 @@ func (i *InputReport) ackSpiFlashRead(data []byte) {
 			0x16, 0xD8, 0x7D,
 			0xF2, 0xB5, 0x5F,
 			0x86, 0x65, 0x5E}
-		copy(i.data[21:30], leftCalibration)
-		copy(i.data[30:39], rightCalibration)
-		replaceSlice(i.data[:], 39, 39+int(sectionRange)-len(leftCalibration)-len(rightCalibration), 0xFF)
+		copy(i[21:30], leftCalibration)
+		copy(i[30:39], rightCalibration)
+		replaceSlice(i[:], 39, 39+int(sectionRange)-len(leftCalibration)-len(rightCalibration), 0xFF)
 	} else if lowEnd == 0x20 && highEnd == 0x60 {
 		// Factory configuration & calibration 1
-		replaceSlice(i.data[:], 21, 21+int(sectionRange), 0xFF)
+		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	}
 }
 
-func (i *InputReport) ackSetNfcMcuConfig() {
-	i.data[14] = 0xA0                  // ACK
-	i.data[15] = byte(SetNfcMcuConfig) // Subcommand Reply
+func (i InputReport) ackSetNfcMcuConfig() {
+	i[14] = 0xA0                  // ACK
+	i[15] = byte(SetNfcMcuConfig) // Subcommand Reply
 
 	data := []byte{
 		0x01, 0x00, 0xFF, 0x00, 0x08, 0x00,
@@ -166,38 +158,38 @@ func (i *InputReport) ackSetNfcMcuConfig() {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0xC8}
-	copy(i.data[16:16+len(data)], data)
+	copy(i[16:16+len(data)], data)
 }
 
-func (i *InputReport) ackSetNfcMcuState() {
-	i.data[14] = 0x80                 // ACK
-	i.data[15] = byte(SetNfcMcuState) // Subcommand Reply
+func (i InputReport) ackSetNfcMcuState() {
+	i[14] = 0x80                 // ACK
+	i[15] = byte(SetNfcMcuState) // Subcommand Reply
 }
 
-func (i *InputReport) ackSetPlayerLights() {
-	i.data[14] = 0x80                  // ACK
-	i.data[15] = byte(SetPlayerLights) // Subcommand Reply
+func (i InputReport) ackSetPlayerLights() {
+	i[14] = 0x80                  // ACK
+	i[15] = byte(SetPlayerLights) // Subcommand Reply
 }
 
-func (i *InputReport) ackEnableImu() {
+func (i InputReport) ackEnableImu() {
 	// TODO: Toggle IMU
-	i.data[14] = 0x80            // ACK
-	i.data[15] = byte(EnableImu) // Subcommand Reply
+	i[14] = 0x80            // ACK
+	i[15] = byte(EnableImu) // Subcommand Reply
 }
 
-func (i *InputReport) ackEnableVibration() {
-	i.data[14] = 0x82                  // ACK
-	i.data[15] = byte(EnableVibration) // Subcommand Reply
+func (i InputReport) ackEnableVibration() {
+	i[14] = 0x82                  // ACK
+	i[15] = byte(EnableVibration) // Subcommand Reply
 }
 
-func (i *InputReport) String() string {
+func (i InputReport) String() string {
 	var builder strings.Builder
 	builder.WriteString("\nPayload:    ")
-	for _, p := range i.data[:14] {
+	for _, p := range i[:14] {
 		builder.WriteString(fmt.Sprintf("0x%02X ", p))
 	}
 	builder.WriteString("\nSubcommand: ")
-	for _, p := range i.data[14:] {
+	for _, p := range i[14:] {
 		builder.WriteString(fmt.Sprintf("0x%02X ", p))
 	}
 	return builder.String()

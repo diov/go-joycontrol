@@ -55,11 +55,11 @@ func (p *Protocol) sendEmptyReport() {
 
 func (p *Protocol) processInputQueue() {
 	for {
-		input := <-p.queue
-		if _, err := unix.Write(p.itr, input.data[:]); nil != err {
+		report := <-p.queue
+		if _, err := unix.Write(p.itr, (*report)[:]); nil != err {
 			log.ErrorF("error writing input report: %v", err)
 		} else {
-			log.DebugF("input report written %s", input)
+			log.DebugF("input report written %s", report)
 		}
 	}
 }
@@ -74,10 +74,7 @@ func (p *Protocol) readOutputReport() {
 				continue
 			case errors.Is(err, errEmptyData), errors.Is(err, errBadLengthData), errors.Is(err, errMalformedData):
 				// TODO: Setting Report ID to full standard input report ID
-				input := &InputReport{}
-				input.reset()
-				input.setReportId(StandardFullMode)
-				p.queue <- input
+				p.processStandardFullReport()
 				return
 			default:
 				log.ErrorF("error reading output report: %v", err)
@@ -98,11 +95,10 @@ func (p *Protocol) readOutputReport() {
 }
 
 func (p Protocol) processStandardFullReport() {
-	input := &InputReport{}
-	input.reset()
-	input.setReportId(StandardFullMode)
-	input.setImuData(p.imuEnabled)
-	p.queue <- input
+	report := AllocStandardReport()
+	report.setReportId(StandardFullMode)
+	report.setImuData(p.imuEnabled)
+	p.queue <- report
 }
 
 func (p *Protocol) processSubcommandReport(report *OutputReport) {
@@ -141,8 +137,7 @@ func (p *Protocol) processSubcommandReport(report *OutputReport) {
 
 func (p *Protocol) answerSetMode(data []byte) {
 	// TODO: Update input report mode
-	report := &InputReport{}
-	report.reset()
+	report := AllocStandardReport()
 	report.setReportId(SubcommandReplies)
 	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
 	report.ackSetInputReportMode()
@@ -150,8 +145,7 @@ func (p *Protocol) answerSetMode(data []byte) {
 }
 
 func (p *Protocol) anwserTriggerButtonsElapsedTime() {
-	report := &InputReport{}
-	report.reset()
+	report := AllocStandardReport()
 	report.setReportId(SubcommandReplies)
 	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
 	report.ackTriggerButtonsElapsedTime()
@@ -161,8 +155,7 @@ func (p *Protocol) anwserTriggerButtonsElapsedTime() {
 func (p *Protocol) answerDeviceInfo() {
 	p.deviceInfoRequired = true
 
-	report := &InputReport{}
-	report.reset()
+	report := AllocStandardReport()
 	report.setReportId(SubcommandReplies)
 	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
 	report.ackDeviceInfo(p.macAddr)
@@ -170,8 +163,7 @@ func (p *Protocol) answerDeviceInfo() {
 }
 
 func (p *Protocol) answerSetShipmentState() {
-	report := &InputReport{}
-	report.reset()
+	report := AllocStandardReport()
 	report.setReportId(SubcommandReplies)
 	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
 	report.ackSetShipmentLowPowerState()
@@ -179,8 +171,7 @@ func (p *Protocol) answerSetShipmentState() {
 }
 
 func (p *Protocol) answerSpiRead(data []byte) {
-	report := &InputReport{}
-	report.reset()
+	report := AllocStandardReport()
 	report.setReportId(SubcommandReplies)
 	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
 	report.ackSpiFlashRead(data)
@@ -189,8 +180,7 @@ func (p *Protocol) answerSpiRead(data []byte) {
 
 func (p *Protocol) answerSetNfcMcuConfig(data []byte) {
 	// TODO: Update NFC MCU config
-	report := &InputReport{}
-	report.reset()
+	report := AllocStandardReport()
 	report.setReportId(SubcommandReplies)
 	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
 	report.ackSetNfcMcuConfig()
@@ -199,8 +189,7 @@ func (p *Protocol) answerSetNfcMcuConfig(data []byte) {
 
 func (p *Protocol) answerSetNfcMcuState(data []byte) {
 	// TODO: Update NFC MCU State
-	report := &InputReport{}
-	report.reset()
+	report := AllocStandardReport()
 	report.setReportId(SubcommandReplies)
 	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
 	report.ackSetNfcMcuState()
@@ -208,8 +197,7 @@ func (p *Protocol) answerSetNfcMcuState(data []byte) {
 }
 
 func (p *Protocol) answerSetPlayerLights() {
-	report := &InputReport{}
-	report.reset()
+	report := AllocStandardReport()
 	report.setReportId(SubcommandReplies)
 	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
 	report.ackSetPlayerLights()
@@ -221,8 +209,7 @@ func (p *Protocol) answerEnableImu(data []byte) {
 		p.imuEnabled = true
 	}
 
-	report := &InputReport{}
-	report.reset()
+	report := AllocStandardReport()
 	report.setReportId(SubcommandReplies)
 	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
 	report.ackEnableImu()
@@ -230,8 +217,7 @@ func (p *Protocol) answerEnableImu(data []byte) {
 }
 
 func (p *Protocol) answerEnableVibration() {
-	report := &InputReport{}
-	report.reset()
+	report := AllocStandardReport()
 	report.setReportId(SubcommandReplies)
 	report.fillStandardData(p.elapsed, p.deviceInfoRequired)
 	report.ackEnableVibration()
