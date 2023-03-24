@@ -1,12 +1,8 @@
 package joycontrol
 
 import (
-	"errors"
 	"fmt"
 	"strings"
-
-	"golang.org/x/exp/slices"
-	"golang.org/x/sys/unix"
 )
 
 // https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md
@@ -56,16 +52,20 @@ func (i InputReport) fillStandardData(elapsed int64, queryDeviceIno bool) {
 		i[5] = 0x00
 		i[6] = 0x00
 
-		i[7] = 0x00 // Left Stick state
-		i[8] = 0x00
-		i[9] = 0x00
+		i[7] = 0x6F // Left Stick state
+		i[8] = 0xC8
+		i[9] = 0x77
 
-		i[10] = 0x00 // Right Stick state
-		i[11] = 0x00
-		i[12] = 0x00
+		i[10] = 0x16 // Right Stick state
+		i[11] = 0xD8
+		i[12] = 0x7D
 
 		i[13] = 0x80 // Vibrator
 	}
+}
+
+func (i InputReport) setButtonState(data []byte) {
+	copy(i[4:6], data)
 }
 
 func (i InputReport) ackSetInputReportMode() {
@@ -121,9 +121,11 @@ func (i InputReport) ackSpiFlashRead(data []byte) {
 		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	} else if lowEnd == 0x80 && highEnd == 0x60 {
 		// Factory Sensor and Stick device parameters
+		// TODO: Copy NXBT
 		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	} else if lowEnd == 0x98 && highEnd == 0x60 {
 		// Factory Stick device parameters 2
+		// TODO: Copy NXBT
 		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	} else if lowEnd == 0x10 && highEnd == 0x80 {
 		// User Analog sticks calibration
@@ -184,6 +186,11 @@ func (i InputReport) ackEnableVibration() {
 
 func (i InputReport) String() string {
 	var builder strings.Builder
+
+	id := InputReportId(i[1])
+	if id == SubcommandReplies {
+		builder.WriteString(fmt.Sprintf("--- %s Msg ---", Subcommand(i[15]).String()))
+	}
 	builder.WriteString("\nPayload:    ")
 	for _, p := range i[:14] {
 		builder.WriteString(fmt.Sprintf("0x%02X ", p))
@@ -194,26 +201,6 @@ func (i InputReport) String() string {
 	}
 	return builder.String()
 }
-
-type OutputReportId uint8
-
-const (
-	RumbleAndSubcommand OutputReportId = 0x01
-	UpdateNFCPacket     OutputReportId = 0x03
-	RumbleOnly          OutputReportId = 0x10
-	RequestNFCData      OutputReportId = 0x11
-	// UnknownOutputType   OutputReportId = 0x12
-
-	OutputReportHeader byte = 0xA2
-	OutputReportLength int  = 50
-)
-
-var (
-	errEmptyData         = errors.New("receive empty data")
-	errBadLengthData     = errors.New("receive bad length data")
-	errMalformedData     = errors.New("receive malformed data")
-	errUnknownSubcommand = errors.New("receive unknown subcommand")
-)
 
 type Subcommand uint8
 
@@ -231,51 +218,29 @@ const (
 	EnableVibration           Subcommand = 0x48
 )
 
-// OutputReport represents report sent from the Switch to the Controller.
-type OutputReport struct {
-	id   OutputReportId
-	data [OutputReportLength]byte
-}
-
-func (o *OutputReport) load(fd int) error {
-	n, err := unix.Read(fd, o.data[:])
-	if err != nil {
-		return err
+func (s Subcommand) String() string {
+	switch s {
+	case 0x02:
+		return "RequestDeviceInfo"
+	case 0x03:
+		return "SetInputReportMode"
+	case 0x04:
+		return "TriggerButtonsElapsedTime"
+	case 0x08:
+		return "SetShipmentLowPowerState"
+	case 0x10:
+		return "SpiFlashRead"
+	case 0x21:
+		return "SetNfcMcuConfig"
+	case 0x22:
+		return "SetNfcMcuState"
+	case 0x30:
+		return "SetPlayerLights"
+	case 0x40:
+		return "EnableImu"
+	case 0x48:
+		return "EnableVibration"
+	default:
+		return "UNKNOWN"
 	}
-	if n != OutputReportLength {
-		return errBadLengthData
-	}
-	if o.data[0] != OutputReportHeader {
-		return errMalformedData
-	}
-
-	typeSlice := []OutputReportId{RumbleAndSubcommand, UpdateNFCPacket, RumbleOnly, RequestNFCData}
-	id := OutputReportId(o.data[1])
-	if !slices.Contains(typeSlice, id) {
-		return errUnknownSubcommand
-	}
-	o.id = id
-	return nil
-}
-
-func (o *OutputReport) getSubcommand() Subcommand {
-	b := o.data[11]
-	return Subcommand(b)
-}
-
-func (o *OutputReport) getSubcommandData() []byte {
-	return o.data[12:]
-}
-
-func (o *OutputReport) String() string {
-	var builder strings.Builder
-	builder.WriteString("\nPayload:    ")
-	for _, p := range o.data[:11] {
-		builder.WriteString(fmt.Sprintf("0x%02X ", p))
-	}
-	builder.WriteString("\nSubcommand: ")
-	for _, p := range o.data[11:] {
-		builder.WriteString(fmt.Sprintf("0x%02X ", p))
-	}
-	return builder.String()
 }

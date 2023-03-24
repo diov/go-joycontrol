@@ -9,8 +9,8 @@ import (
 var l logger
 
 func init() {
-	debugLog := golog.New(os.Stdout, "DEBUG - ", golog.Ltime|golog.Lshortfile)
-	errorLog := golog.New(os.Stdout, "ERROR - ", golog.Ltime|golog.Lshortfile)
+	debugLog := golog.New(os.Stdout, "DEBUG - ", golog.Lmicroseconds|golog.Lshortfile)
+	errorLog := golog.New(os.Stdout, "ERROR - ", golog.Lmicroseconds|golog.Lshortfile)
 
 	l = logger{debugLog, errorLog}
 }
