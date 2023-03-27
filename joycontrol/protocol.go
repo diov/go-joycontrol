@@ -23,16 +23,9 @@ func (p *Protocol) Setup(macAddr []byte) {
 	p.macAddr = macAddr
 }
 
-func (p *Protocol) sendButtonInput(data []byte) (input *InputReport) {
-	input = AllocStandardReport()
-	input.setReportId(StandardFullMode)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.setImuData(p.imuEnabled)
-	input.setButtonState(data)
-	return
-}
-
 func (p Protocol) generateStandardReport() (input *InputReport) {
+	p.updateTimer()
+
 	input = AllocStandardReport()
 	input.setReportId(StandardFullMode)
 	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
@@ -167,9 +160,8 @@ func (p *Protocol) answerEnableVibration() (input *InputReport) {
 }
 
 func (p *Protocol) updateTimer() {
-	now := time.Now()
-	duration := now.Sub(p.lastTime)
+	duration := time.Since(p.lastTime)
 
-	p.elapsed = int64(duration/4) & 0xFF
-	p.lastTime = now
+	p.elapsed = (p.elapsed + (duration.Microseconds() * 4)) & 0xFF
+	p.lastTime = time.Now()
 }

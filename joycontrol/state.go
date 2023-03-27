@@ -3,7 +3,8 @@ package joycontrol
 // https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md
 
 type ControllerState struct {
-	bs *ButtonState
+	dirty bool
+	bs    *ButtonState
 }
 
 func NewControllerState() *ControllerState {
@@ -15,10 +16,17 @@ func NewControllerState() *ControllerState {
 }
 
 func (c *ControllerState) press(buttons ...string) {
+	c.dirty = true
 	c.bs.press(buttons...)
 }
 
+func (c *ControllerState) release(buttons ...string) {
+	c.dirty = true
+	c.bs.release(buttons...)
+}
+
 func (c *ControllerState) dump() []byte {
+	c.dirty = false
 	return c.bs.data[:]
 }
 

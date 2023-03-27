@@ -32,7 +32,10 @@ type Server struct {
 
 	needWatch      bool
 	reportReceived bool
+	stateUpdated   bool
 	mux            sync.RWMutex
+
+	freqChan chan time.Duration
 
 	output OutputReport
 }
@@ -49,9 +52,8 @@ func NewServer() *Server {
 	}
 }
 
-func (s *Server) Run() {
+func (s *Server) Start() {
 	toggleCleanBluez(true)
-	defer toggleCleanBluez(false)
 	addr, _ := s.device.GetAddress()
 	mac, _ := net.ParseMAC(addr)
 
@@ -60,7 +62,28 @@ func (s *Server) Run() {
 		return
 	}
 	s.protocol.Setup(mac)
-	_, _ = s.Connect()
+	itr, ctrl := s.Connect()
+	go s.Run(itr, ctrl)
+
+	// TODO: remove this test case
+	go func() {
+		time.Sleep(time.Second * 5)
+		s.state.press("B")
+		time.Sleep(time.Second / 10)
+		s.state.release("B")
+		time.Sleep(time.Second * 3)
+		s.state.press("B")
+		time.Sleep(time.Second / 10)
+		s.state.release("B")
+		time.Sleep(time.Second * 5)
+		s.state.press("A")
+		time.Sleep(time.Second / 10)
+		s.state.release("A")
+		time.Sleep(time.Second * 3)
+		s.state.press("A")
+		time.Sleep(time.Second / 10)
+		s.state.release("A")
+	}()
 }
 
 func (s *Server) Setup() (err error) {
@@ -137,37 +160,34 @@ func (s *Server) Connect() (int, int) {
 			timer.Reset(time.Second / 15)
 		}
 
-		_, err := s.unixRead(itr, s.output)
+		var err error
+		var input *InputReport
+		if _, err = s.unixRead(itr, s.output); err == nil {
+			err = s.output.validate()
+		}
 		if err != nil {
 			switch {
-			case errors.Is(err, syscall.EAGAIN):
-				input := s.protocol.generateStandardReport()
-				s.unixWrite(itr, input)
+			case errors.Is(err, syscall.EAGAIN),
+				errors.Is(err, errBadLengthData),
+				errors.Is(err, errMalformedData),
+				errors.Is(err, errUnknownOutputId),
+				errors.Is(err, errUnknownSubcommand):
+				input = s.protocol.generateStandardReport()
 			default:
 				log.ErrorF("error reading output report: %v", err)
+				continue
 			}
-			continue
-		}
-		if err = s.output.validate(); nil != err {
-			input := s.protocol.generateStandardReport()
-			s.unixWrite(itr, input)
-			continue
-		}
-
-		s.reportReceived = true
-		switch s.output.getId() {
-		case RumbleAndSubcommand:
-			input := s.protocol.processSubcommandReport(s.output)
-			if _, err := s.unixWrite(itr, input); nil != err {
-				log.DebugF("error Answer report: %v", err)
+		} else {
+			s.reportReceived = true
+			switch s.output.getId() {
+			case RumbleAndSubcommand:
+				input = s.protocol.processSubcommandReport(s.output)
+			default:
+				log.Debug(s.output.getId())
+				input = s.protocol.generateStandardReport()
 			}
-		case UpdateNFCPacket:
-			log.Debug("UpdateNFCPacket")
-		case RumbleOnly:
-			log.Debug("RumbleOnly")
-		case RequestNFCData:
-			log.Debug("RequestNFCData")
 		}
+		s.unixWrite(itr, input)
 
 		if s.protocol.vibrationEnabled && s.protocol.playerNumber {
 			log.Debug("Switch connected")
@@ -178,6 +198,53 @@ func (s *Server) Connect() (int, int) {
 	return itr, ctrl
 }
 
+func (s *Server) Run(itr, ctrl int) {
+	tick := 0
+	freq := time.Second / 66
+	timer := time.NewTimer(freq)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-timer.C:
+			tick++
+			timer.Reset(freq)
+
+			var err error
+			var input *InputReport
+			if _, err = s.unixRead(itr, s.output); err == nil {
+				err = s.output.validate()
+			}
+			if err != nil {
+				input = s.protocol.generateStandardReport()
+			} else {
+				switch s.output.getId() {
+				case RumbleAndSubcommand:
+					input = s.protocol.processSubcommandReport(s.output)
+					s.stateUpdated = true
+				case RumbleOnly, UpdateNFCPacket, RequestNFCData:
+					input = s.protocol.generateStandardReport()
+				}
+			}
+			if s.state.dirty {
+				input.setButtonState(s.state.dump())
+				s.stateUpdated = true
+			}
+			if s.stateUpdated {
+				_, err := s.unixWrite(itr, input)
+				log.DebugF("MainLoop Update %s %v", input, err)
+				s.stateUpdated = false
+			} else if tick >= 132 {
+				_, err := s.unixWrite(itr, input)
+				log.DebugF("MainLoop Blank %s %v", input, err)
+				tick = 0
+			}
+		case duration := <-s.freqChan:
+			freq = duration
+		}
+	}
+}
+
 func (s *Server) unixRead(fd int, output OutputReport) (int, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
@@ -186,7 +253,10 @@ func (s *Server) unixRead(fd int, output OutputReport) (int, error) {
 
 func (s *Server) unixWrite(fd int, input *InputReport) (int, error) {
 	s.mux.Lock()
-	defer s.mux.Unlock()
+	defer func() {
+		s.mux.Unlock()
+		FreeReport(input)
+	}()
 	return unix.Write(fd, *input)
 }
 
@@ -242,4 +312,9 @@ func (s *Server) watchConnReset() {
 			}
 		}
 	}
+}
+
+func (s *Server) Stop() {
+	log.Debug("Gracefully shutting down server")
+	toggleCleanBluez(false)
 }
