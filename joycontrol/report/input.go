@@ -1,4 +1,4 @@
-package joycontrol
+package report
 
 import (
 	"fmt"
@@ -25,11 +25,11 @@ const (
 // InputReport represents report sent from the Controller to the Switch.
 type InputReport []byte
 
-func (i InputReport) setReportId(id InputReportId) {
+func (i InputReport) SetReportId(id InputReportId) {
 	i[1] = byte(id)
 }
 
-func (i InputReport) setImuData(enabled bool) {
+func (i InputReport) SetImuData(enabled bool) {
 	if !enabled {
 		return
 	}
@@ -42,7 +42,7 @@ func (i InputReport) setImuData(enabled bool) {
 	copy(i[14:14+len(data)], data)
 }
 
-func (i InputReport) fillStandardData(elapsed int64, queryDeviceIno bool) {
+func (i InputReport) FillStandardData(elapsed int64, queryDeviceIno bool) {
 	i[2] = byte(elapsed)
 
 	if queryDeviceIno {
@@ -64,16 +64,16 @@ func (i InputReport) fillStandardData(elapsed int64, queryDeviceIno bool) {
 	}
 }
 
-func (i InputReport) setButtonState(data []byte) {
-	copy(i[4:6], data)
+func (i InputReport) SetButtonState(data []byte) {
+	copy(i[4:7], data)
 }
 
-func (i InputReport) ackSetInputReportMode() {
+func (i InputReport) AckSetInputReportMode() {
 	i[14] = 0x80                     // ACK without data
 	i[15] = byte(SetInputReportMode) // Subcommand Reply
 }
 
-func (i InputReport) ackDeviceInfo(mac []byte) {
+func (i InputReport) AckDeviceInfo(mac []byte) {
 	i[14] = 0x82                    // ACK with data
 	i[15] = byte(RequestDeviceInfo) // Subcommand Reply
 
@@ -90,18 +90,18 @@ func (i InputReport) ackDeviceInfo(mac []byte) {
 	i[27] = 0x01 // Controller colours location
 }
 
-func (i InputReport) ackTriggerButtonsElapsedTime() {
+func (i InputReport) AckTriggerButtonsElapsedTime() {
 	i[14] = 0x83                            // ACK
 	i[15] = byte(TriggerButtonsElapsedTime) // Subcommand Reply
 }
 
-func (i InputReport) ackSetShipmentLowPowerState() {
+func (i InputReport) AckSetShipmentLowPowerState() {
 	i[14] = 0x80                           // ACK
 	i[15] = byte(SetShipmentLowPowerState) // Subcommand Reply
 }
 
 // https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/spi_flash_notes.md
-func (i InputReport) ackSpiFlashRead(data []byte) {
+func (i InputReport) AckSpiFlashRead(data []byte) {
 	lowEnd := data[0]
 	highEnd := data[1]
 	sectionRange := data[4]
@@ -149,7 +149,7 @@ func (i InputReport) ackSpiFlashRead(data []byte) {
 	}
 }
 
-func (i InputReport) ackSetNfcMcuConfig() {
+func (i InputReport) AckSetNfcMcuConfig() {
 	i[14] = 0xA0                  // ACK
 	i[15] = byte(SetNfcMcuConfig) // Subcommand Reply
 
@@ -163,23 +163,23 @@ func (i InputReport) ackSetNfcMcuConfig() {
 	copy(i[16:16+len(data)], data)
 }
 
-func (i InputReport) ackSetNfcMcuState() {
+func (i InputReport) AckSetNfcMcuState() {
 	i[14] = 0x80                 // ACK
 	i[15] = byte(SetNfcMcuState) // Subcommand Reply
 }
 
-func (i InputReport) ackSetPlayerLights() {
+func (i InputReport) AckSetPlayerLights() {
 	i[14] = 0x80                  // ACK
 	i[15] = byte(SetPlayerLights) // Subcommand Reply
 }
 
-func (i InputReport) ackEnableImu() {
+func (i InputReport) AckEnableImu() {
 	// TODO: Toggle IMU
 	i[14] = 0x80            // ACK
 	i[15] = byte(EnableImu) // Subcommand Reply
 }
 
-func (i InputReport) ackEnableVibration() {
+func (i InputReport) AckEnableVibration() {
 	i[14] = 0x82                  // ACK
 	i[15] = byte(EnableVibration) // Subcommand Reply
 }
@@ -200,47 +200,4 @@ func (i InputReport) String() string {
 		builder.WriteString(fmt.Sprintf("0x%02X ", p))
 	}
 	return builder.String()
-}
-
-type Subcommand uint8
-
-// https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_subcommands_notes.md
-const (
-	RequestDeviceInfo         Subcommand = 0x02
-	SetInputReportMode        Subcommand = 0x03
-	TriggerButtonsElapsedTime Subcommand = 0x04
-	SetShipmentLowPowerState  Subcommand = 0x08
-	SpiFlashRead              Subcommand = 0x10
-	SetNfcMcuConfig           Subcommand = 0x21
-	SetNfcMcuState            Subcommand = 0x22
-	SetPlayerLights           Subcommand = 0x30
-	EnableImu                 Subcommand = 0x40
-	EnableVibration           Subcommand = 0x48
-)
-
-func (s Subcommand) String() string {
-	switch s {
-	case 0x02:
-		return "RequestDeviceInfo"
-	case 0x03:
-		return "SetInputReportMode"
-	case 0x04:
-		return "TriggerButtonsElapsedTime"
-	case 0x08:
-		return "SetShipmentLowPowerState"
-	case 0x10:
-		return "SpiFlashRead"
-	case 0x21:
-		return "SetNfcMcuConfig"
-	case 0x22:
-		return "SetNfcMcuState"
-	case 0x30:
-		return "SetPlayerLights"
-	case 0x40:
-		return "EnableImu"
-	case 0x48:
-		return "EnableVibration"
-	default:
-		return "UNKNOWN"
-	}
 }

@@ -2,6 +2,8 @@ package joycontrol
 
 import (
 	"time"
+
+	R "dio.wtf/joycontrol/joycontrol/report"
 )
 
 type Protocol struct {
@@ -23,40 +25,40 @@ func (p *Protocol) Setup(macAddr []byte) {
 	p.macAddr = macAddr
 }
 
-func (p Protocol) generateStandardReport() (input *InputReport) {
+func (p Protocol) generateStandardReport() (input *R.InputReport) {
 	p.updateTimer()
 
 	input = AllocStandardReport()
-	input.setReportId(StandardFullMode)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.setImuData(p.imuEnabled)
+	input.SetReportId(R.StandardFullMode)
+	input.FillStandardData(p.elapsed, p.deviceInfoRequired)
+	input.SetImuData(p.imuEnabled)
 	return
 }
 
-func (p *Protocol) processSubcommandReport(output OutputReport) (input *InputReport) {
+func (p *Protocol) processSubcommandReport(output R.OutputReport) (input *R.InputReport) {
 	p.updateTimer()
 
-	subcommand := output.getSubcommand()
+	subcommand := output.Subcommand()
 	switch subcommand {
-	case RequestDeviceInfo:
+	case R.RequestDeviceInfo:
 		input = p.answerDeviceInfo()
-	case SetInputReportMode:
-		input = p.answerSetMode(output.getSubcommandData())
-	case TriggerButtonsElapsedTime:
+	case R.SetInputReportMode:
+		input = p.answerSetMode(output.SubcommandData())
+	case R.TriggerButtonsElapsedTime:
 		input = p.anwserTriggerButtonsElapsedTime()
-	case SetShipmentLowPowerState:
+	case R.SetShipmentLowPowerState:
 		input = p.answerSetShipmentState()
-	case SpiFlashRead:
-		input = p.answerSpiRead(output.getSubcommandData())
-	case SetNfcMcuConfig:
-		input = p.answerSetNfcMcuConfig(output.getSubcommandData())
-	case SetNfcMcuState:
-		input = p.answerSetNfcMcuState(output.getSubcommandData())
-	case SetPlayerLights:
+	case R.SpiFlashRead:
+		input = p.answerSpiRead(output.SubcommandData())
+	case R.SetNfcMcuConfig:
+		input = p.answerSetNfcMcuConfig(output.SubcommandData())
+	case R.SetNfcMcuState:
+		input = p.answerSetNfcMcuState(output.SubcommandData())
+	case R.SetPlayerLights:
 		input = p.answerSetPlayerLights()
-	case EnableImu:
-		input = p.answerEnableImu(output.getSubcommandData())
-	case EnableVibration:
+	case R.EnableImu:
+		input = p.answerEnableImu(output.SubcommandData())
+	case R.EnableVibration:
 		input = p.answerEnableVibration()
 	default:
 		// Currently set so that the controller ignores any unknown
@@ -68,94 +70,94 @@ func (p *Protocol) processSubcommandReport(output OutputReport) (input *InputRep
 	return
 }
 
-func (p *Protocol) answerSetMode(data []byte) (input *InputReport) {
+func (p *Protocol) answerSetMode(data []byte) (input *R.InputReport) {
 	// TODO: Update input input mode
 	input = AllocStandardReport()
-	input.setReportId(SubcommandReplies)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.ackSetInputReportMode()
+	input.SetReportId(R.SubcommandReplies)
+	input.FillStandardData(p.elapsed, p.deviceInfoRequired)
+	input.AckSetInputReportMode()
 	return
 }
 
-func (p *Protocol) anwserTriggerButtonsElapsedTime() (input *InputReport) {
+func (p *Protocol) anwserTriggerButtonsElapsedTime() (input *R.InputReport) {
 	input = AllocStandardReport()
-	input.setReportId(SubcommandReplies)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.ackTriggerButtonsElapsedTime()
+	input.SetReportId(R.SubcommandReplies)
+	input.FillStandardData(p.elapsed, p.deviceInfoRequired)
+	input.AckTriggerButtonsElapsedTime()
 	return
 }
 
-func (p *Protocol) answerDeviceInfo() (input *InputReport) {
+func (p *Protocol) answerDeviceInfo() (input *R.InputReport) {
 	p.deviceInfoRequired = true
 
 	input = AllocStandardReport()
-	input.setReportId(SubcommandReplies)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.ackDeviceInfo(p.macAddr)
+	input.SetReportId(R.SubcommandReplies)
+	input.FillStandardData(p.elapsed, p.deviceInfoRequired)
+	input.AckDeviceInfo(p.macAddr)
 	return
 }
 
-func (p *Protocol) answerSetShipmentState() (input *InputReport) {
+func (p *Protocol) answerSetShipmentState() (input *R.InputReport) {
 	input = AllocStandardReport()
-	input.setReportId(SubcommandReplies)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.ackSetShipmentLowPowerState()
+	input.SetReportId(R.SubcommandReplies)
+	input.FillStandardData(p.elapsed, p.deviceInfoRequired)
+	input.AckSetShipmentLowPowerState()
 	return
 }
 
-func (p *Protocol) answerSpiRead(data []byte) (input *InputReport) {
+func (p *Protocol) answerSpiRead(data []byte) (input *R.InputReport) {
 	input = AllocStandardReport()
-	input.setReportId(SubcommandReplies)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.ackSpiFlashRead(data)
+	input.SetReportId(R.SubcommandReplies)
+	input.FillStandardData(p.elapsed, p.deviceInfoRequired)
+	input.AckSpiFlashRead(data)
 	return
 }
 
-func (p *Protocol) answerSetNfcMcuConfig(data []byte) (input *InputReport) {
+func (p *Protocol) answerSetNfcMcuConfig(data []byte) (input *R.InputReport) {
 	// TODO: Update NFC MCU config
 	input = AllocStandardReport()
-	input.setReportId(SubcommandReplies)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.ackSetNfcMcuConfig()
+	input.SetReportId(R.SubcommandReplies)
+	input.FillStandardData(p.elapsed, p.deviceInfoRequired)
+	input.AckSetNfcMcuConfig()
 	return
 }
 
-func (p *Protocol) answerSetNfcMcuState(data []byte) (input *InputReport) {
+func (p *Protocol) answerSetNfcMcuState(data []byte) (input *R.InputReport) {
 	// TODO: Update NFC MCU State
 	input = AllocStandardReport()
-	input.setReportId(SubcommandReplies)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.ackSetNfcMcuState()
+	input.SetReportId(R.SubcommandReplies)
+	input.FillStandardData(p.elapsed, p.deviceInfoRequired)
+	input.AckSetNfcMcuState()
 	return
 }
 
-func (p *Protocol) answerSetPlayerLights() (input *InputReport) {
+func (p *Protocol) answerSetPlayerLights() (input *R.InputReport) {
 	p.playerNumber = true
 	input = AllocStandardReport()
-	input.setReportId(SubcommandReplies)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.ackSetPlayerLights()
+	input.SetReportId(R.SubcommandReplies)
+	input.FillStandardData(p.elapsed, p.deviceInfoRequired)
+	input.AckSetPlayerLights()
 	return
 }
 
-func (p *Protocol) answerEnableImu(data []byte) (input *InputReport) {
+func (p *Protocol) answerEnableImu(data []byte) (input *R.InputReport) {
 	if data[0] == 0x01 {
 		p.imuEnabled = true
 	}
 
 	input = AllocStandardReport()
-	input.setReportId(SubcommandReplies)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.ackEnableImu()
+	input.SetReportId(R.SubcommandReplies)
+	input.FillStandardData(p.elapsed, p.deviceInfoRequired)
+	input.AckEnableImu()
 	return
 }
 
-func (p *Protocol) answerEnableVibration() (input *InputReport) {
+func (p *Protocol) answerEnableVibration() (input *R.InputReport) {
 	p.vibrationEnabled = true
 	input = AllocStandardReport()
-	input.setReportId(SubcommandReplies)
-	input.fillStandardData(p.elapsed, p.deviceInfoRequired)
-	input.ackEnableVibration()
+	input.SetReportId(R.SubcommandReplies)
+	input.FillStandardData(p.elapsed, p.deviceInfoRequired)
+	input.AckEnableVibration()
 	return
 }
 

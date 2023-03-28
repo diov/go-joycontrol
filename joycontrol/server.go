@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"dio.wtf/joycontrol/joycontrol/log"
+	R "dio.wtf/joycontrol/joycontrol/report"
 	"github.com/godbus/dbus/v5"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
@@ -21,14 +22,13 @@ var sdpRecord string
 const (
 	GAMEPAD_CLASS = "0x002508"
 	HID_PATH      = "/joysticker/controller"
-
-	ALIAS = "Pro Controller"
+	ALIAS         = "Pro Controller"
 )
 
 type Server struct {
-	device   *Device
-	protocol *Protocol
-	state    *ControllerState
+	device     *Device
+	protocol   *Protocol
+	controller *Controller
 
 	needWatch      bool
 	reportReceived bool
@@ -37,18 +37,17 @@ type Server struct {
 
 	freqChan chan time.Duration
 
-	output OutputReport
+	output R.OutputReport
 }
 
-func NewServer() *Server {
+func NewServer(controller *Controller) *Server {
 	device, _ := NewDevice()
 	protocol := NewProtocol()
-	state := NewControllerState()
 	return &Server{
-		device:   device,
-		protocol: protocol,
-		state:    state,
-		output:   make([]byte, OutputReportLength),
+		device:     device,
+		protocol:   protocol,
+		controller: controller,
+		output:     make([]byte, R.OutputReportLength),
 	}
 }
 
@@ -64,26 +63,6 @@ func (s *Server) Start() {
 	s.protocol.Setup(mac)
 	itr, ctrl := s.Connect()
 	go s.Run(itr, ctrl)
-
-	// TODO: remove this test case
-	go func() {
-		time.Sleep(time.Second * 5)
-		s.state.press("B")
-		time.Sleep(time.Second / 10)
-		s.state.release("B")
-		time.Sleep(time.Second * 3)
-		s.state.press("B")
-		time.Sleep(time.Second / 10)
-		s.state.release("B")
-		time.Sleep(time.Second * 5)
-		s.state.press("A")
-		time.Sleep(time.Second / 10)
-		s.state.release("A")
-		time.Sleep(time.Second * 3)
-		s.state.press("A")
-		time.Sleep(time.Second / 10)
-		s.state.release("A")
-	}()
 }
 
 func (s *Server) Setup() (err error) {
@@ -161,17 +140,17 @@ func (s *Server) Connect() (int, int) {
 		}
 
 		var err error
-		var input *InputReport
+		var input *R.InputReport
 		if _, err = s.unixRead(itr, s.output); err == nil {
-			err = s.output.validate()
+			err = s.output.Validate()
 		}
 		if err != nil {
 			switch {
 			case errors.Is(err, syscall.EAGAIN),
-				errors.Is(err, errBadLengthData),
-				errors.Is(err, errMalformedData),
-				errors.Is(err, errUnknownOutputId),
-				errors.Is(err, errUnknownSubcommand):
+				errors.Is(err, R.ErrBadLengthData),
+				errors.Is(err, R.ErrMalformedData),
+				errors.Is(err, R.ErrUnknownOutputId),
+				errors.Is(err, R.ErrUnknownSubcommand):
 				input = s.protocol.generateStandardReport()
 			default:
 				log.ErrorF("error reading output report: %v", err)
@@ -179,11 +158,10 @@ func (s *Server) Connect() (int, int) {
 			}
 		} else {
 			s.reportReceived = true
-			switch s.output.getId() {
-			case RumbleAndSubcommand:
+			switch s.output.Id() {
+			case R.RumbleAndSubcommand:
 				input = s.protocol.processSubcommandReport(s.output)
 			default:
-				log.Debug(s.output.getId())
 				input = s.protocol.generateStandardReport()
 			}
 		}
@@ -211,23 +189,26 @@ func (s *Server) Run(itr, ctrl int) {
 			timer.Reset(freq)
 
 			var err error
-			var input *InputReport
+			var input *R.InputReport
 			if _, err = s.unixRead(itr, s.output); err == nil {
-				err = s.output.validate()
+				err = s.output.Validate()
 			}
 			if err != nil {
 				input = s.protocol.generateStandardReport()
 			} else {
-				switch s.output.getId() {
-				case RumbleAndSubcommand:
+				switch s.output.Id() {
+				case R.RumbleAndSubcommand:
 					input = s.protocol.processSubcommandReport(s.output)
 					s.stateUpdated = true
-				case RumbleOnly, UpdateNFCPacket, RequestNFCData:
+				case R.RumbleOnly, R.UpdateNFCPacket:
 					input = s.protocol.generateStandardReport()
+				case R.RequestNFCData:
+					// TODO: Handle NFC
 				}
 			}
-			if s.state.dirty {
-				input.setButtonState(s.state.dump())
+			if s.controller.dirty {
+				b := s.controller.dump()
+				input.SetButtonState(b)
 				s.stateUpdated = true
 			}
 			if s.stateUpdated {
@@ -235,8 +216,7 @@ func (s *Server) Run(itr, ctrl int) {
 				log.DebugF("MainLoop Update %s %v", input, err)
 				s.stateUpdated = false
 			} else if tick >= 132 {
-				_, err := s.unixWrite(itr, input)
-				log.DebugF("MainLoop Blank %s %v", input, err)
+				_, _ = s.unixWrite(itr, input)
 				tick = 0
 			}
 		case duration := <-s.freqChan:
@@ -245,13 +225,13 @@ func (s *Server) Run(itr, ctrl int) {
 	}
 }
 
-func (s *Server) unixRead(fd int, output OutputReport) (int, error) {
+func (s *Server) unixRead(fd int, output R.OutputReport) (int, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	return unix.Read(fd, output)
 }
 
-func (s *Server) unixWrite(fd int, input *InputReport) (int, error) {
+func (s *Server) unixWrite(fd int, input *R.InputReport) (int, error) {
 	s.mux.Lock()
 	defer func() {
 		s.mux.Unlock()

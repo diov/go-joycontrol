@@ -2,30 +2,30 @@ package joycontrol
 
 // https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md
 
-type ControllerState struct {
+type Controller struct {
 	dirty bool
 	bs    *ButtonState
 }
 
-func NewControllerState() *ControllerState {
-	return &ControllerState{
+func NewController() *Controller {
+	return &Controller{
 		bs: &ButtonState{
 			data: [3]byte{},
 		},
 	}
 }
 
-func (c *ControllerState) press(buttons ...string) {
+func (c *Controller) Press(buttons ...string) {
 	c.dirty = true
 	c.bs.press(buttons...)
 }
 
-func (c *ControllerState) release(buttons ...string) {
+func (c *Controller) Release(buttons ...string) {
 	c.dirty = true
 	c.bs.release(buttons...)
 }
 
-func (c *ControllerState) dump() []byte {
+func (c *Controller) dump() []byte {
 	c.dirty = false
 	return c.bs.data[:]
 }
@@ -54,10 +54,10 @@ var buttonMap = map[string]struct {
 	"Home":         {1, 4},
 	"Capture":      {1, 5},
 	"ChargingGrip": {1, 7},
-	"Down":         {2, 0},
-	"Up":           {2, 1},
-	"Right":        {2, 2},
-	"Left":         {2, 3},
+	"DOWN":         {2, 0},
+	"UP":           {2, 1},
+	"RIGHT":        {2, 2},
+	"LEFT":         {2, 3},
 	// "SR":    {2, 4},
 	// "SL":    {2, 5},
 	"L":  {2, 6},

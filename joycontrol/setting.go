@@ -54,9 +54,3 @@ func toggleCleanBluez(flag bool) {
 	cmd.Exec("systemctl", "restart", "bluetooth")
 	log.Debug("systemd found and bluetooth reloaded")
 }
-
-func replaceSlice(slice []byte, start, end int, replacement byte) {
-	for i := start; i < end; i++ {
-		slice[i] = replacement
-	}
-}

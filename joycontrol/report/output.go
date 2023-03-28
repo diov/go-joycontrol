@@ -1,4 +1,4 @@
-package joycontrol
+package report
 
 import (
 	"errors"
@@ -20,32 +20,32 @@ const (
 )
 
 var (
-	errBadLengthData     = errors.New("receive bad length data")
-	errMalformedData     = errors.New("receive malformed data")
-	errUnknownOutputId   = errors.New("receive unknown output report id")
-	errUnknownSubcommand = errors.New("receive unknown subcommand")
+	ErrBadLengthData     = errors.New("receive bad length data")
+	ErrMalformedData     = errors.New("receive malformed data")
+	ErrUnknownOutputId   = errors.New("receive unknown output report id")
+	ErrUnknownSubcommand = errors.New("receive unknown subcommand")
 )
 
 // OutputReport represents report sent from the Switch to the Controller.
 type OutputReport []byte
 
-func (o OutputReport) validate() error {
+func (o OutputReport) Validate() error {
 	if len(o) != OutputReportLength {
-		return errBadLengthData
+		return ErrBadLengthData
 	}
 	if o[0] != OutputReportHeader {
-		return errMalformedData
+		return ErrMalformedData
 	}
-	id := o.getId()
+	id := o.Id()
 	if id != RumbleAndSubcommand &&
 		id != RumbleOnly &&
 		id != RequestNFCData &&
 		id != UpdateNFCPacket {
-		return errUnknownOutputId
+		return ErrUnknownOutputId
 
 	}
 	if id == RumbleAndSubcommand {
-		subcommand := o.getSubcommand()
+		subcommand := o.Subcommand()
 		if subcommand != RequestDeviceInfo &&
 			subcommand != SetInputReportMode &&
 			subcommand != TriggerButtonsElapsedTime &&
@@ -56,29 +56,29 @@ func (o OutputReport) validate() error {
 			subcommand != SetPlayerLights &&
 			subcommand != EnableImu &&
 			subcommand != EnableVibration {
-			return errUnknownSubcommand
+			return ErrUnknownSubcommand
 		}
 	}
 
 	return nil
 }
 
-func (o OutputReport) getId() OutputReportId {
+func (o OutputReport) Id() OutputReportId {
 	return OutputReportId(o[1])
 }
 
-func (o OutputReport) getSubcommand() Subcommand {
+func (o OutputReport) Subcommand() Subcommand {
 	b := o[11]
 	return Subcommand(b)
 }
 
-func (o OutputReport) getSubcommandData() []byte {
+func (o OutputReport) SubcommandData() []byte {
 	return o[12:]
 }
 
 func (o OutputReport) String() string {
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("--- %s Msg ---", o.getSubcommand().String()))
+	builder.WriteString(fmt.Sprintf("--- %s Msg ---", o.Subcommand().String()))
 	builder.WriteString("\nPayload:    ")
 	for _, p := range o[:11] {
 		builder.WriteString(fmt.Sprintf("0x%02X ", p))
