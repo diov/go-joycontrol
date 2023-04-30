@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"dio.wtf/joycontrol/joycontrol"
+	C "dio.wtf/joycontrol/joycontrol/controller"
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/exp/slices"
 )
@@ -16,17 +17,7 @@ type model struct {
 	current    string
 	lastAction string
 
-	controller *joycontrol.Controller
-}
-
-func initialModel(controller *joycontrol.Controller) model {
-	return model{
-		action:     []string{"A", "B", "X", "Y", "L", "ZL", "R", "ZR", "HOME", "UP", "DOWN", "LEFT", "RIGHT"},
-		current:    "",
-		lastAction: "",
-
-		controller: controller,
-	}
+	controller *C.Controller
 }
 
 func (m model) Init() tea.Cmd {
@@ -62,18 +53,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	// The header
-	// s := "Type next action?\n\n"
+	s := "Type next action?\n\n"
 
-	// s += fmt.Sprintf("last action: %s\n", m.lastAction)
-	// s += strings.ToUpper(m.current)
+	s += fmt.Sprintf("last action: %s\n", m.lastAction)
+	s += strings.ToUpper(m.current)
 
-	// s += "\n\nPress q to quit.\n"
+	s += "\n\nPress q to quit.\n"
 
-	return ""
+	return s
+}
+
+func initialModel(controller *C.Controller) model {
+	return model{
+		action:     []string{"A", "B", "X", "Y", "L", "ZL", "R", "ZR", "HOME", "UP", "DOWN", "LEFT", "RIGHT"},
+		current:    "",
+		lastAction: "",
+
+		controller: controller,
+	}
 }
 
 func main() {
-	controller := joycontrol.NewController()
+	controller := C.NewController()
 	server := joycontrol.NewServer(controller)
 	server.Start()
 	defer server.Stop()

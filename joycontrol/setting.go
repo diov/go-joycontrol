@@ -54,3 +54,21 @@ func toggleCleanBluez(flag bool) {
 	cmd.Exec("systemctl", "restart", "bluetooth")
 	log.Debug("systemd found and bluetooth reloaded")
 }
+
+func crc8Checksum(bytes []byte) byte {
+	polynomial := byte(0x07)
+	accumulator := byte(0)
+
+	for j := 0; j < len(bytes)-1; j++ {
+		b := bytes[j]
+		accumulator = accumulator ^ b
+		for i := 0; i < 8; i++ {
+			if (accumulator & 0x80) != 0x00 {
+				accumulator = (accumulator << 1) ^ polynomial
+			} else {
+				accumulator = accumulator << 1
+			}
+		}
+	}
+	return accumulator
+}

@@ -7,16 +7,7 @@ import (
 
 // https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md
 
-type InputReportId uint8
-
 const (
-	ButtonAction      InputReportId = 0x3F
-	SubcommandReplies InputReportId = 0x21
-	UpdateNFCReport   InputReportId = 0x23
-	StandardFullMode  InputReportId = 0x30
-	NFCMode           InputReportId = 0x31
-	// UnknownInputType  InputReportId = 0x32 | 0x33
-
 	InputReportHeader byte = 0xA1
 	// InputReportLength int  = 363 // header + 362 Standard input report
 	InputReportLength int = 50
@@ -35,10 +26,10 @@ func (i InputReport) SetImuData(enabled bool) {
 	}
 
 	data := []byte{
-		0x75, 0xFD, 0xFD, 0xFF, 0x09, 0x10, 0x21, 0x00, 0xD5, 0xFF,
-		0xE0, 0xFF, 0x72, 0xFD, 0xF9, 0xFF, 0x0A, 0x10, 0x22, 0x00,
-		0xD5, 0xFF, 0xE0, 0xFF, 0x76, 0xFD, 0xFC, 0xFF, 0x09, 0x10,
-		0x23, 0x00, 0xD5, 0xFF, 0xE0, 0xFF}
+		0x75, 0xFD, 0xFD, 0xFF, 0x09, 0x10, 0x21, 0x00, 0xD5,
+		0xFF, 0xE0, 0xFF, 0x72, 0xFD, 0xF9, 0xFF, 0x0A, 0x10,
+		0x22, 0x00, 0xD5, 0xFF, 0xE0, 0xFF, 0x76, 0xFD, 0xFC,
+		0xFF, 0x09, 0x10, 0x23, 0x00, 0xD5, 0xFF, 0xE0, 0xFF}
 	copy(i[14:14+len(data)], data)
 }
 
@@ -52,13 +43,13 @@ func (i InputReport) FillStandardData(elapsed int64, queryDeviceIno bool) {
 		i[5] = 0x00
 		i[6] = 0x00
 
-		i[7] = 0x6F // Left Stick state
-		i[8] = 0xC8
-		i[9] = 0x77
+		i[7] = 0x00 // Left Stick state
+		i[8] = 0x00
+		i[9] = 0x00
 
-		i[10] = 0x16 // Right Stick state
-		i[11] = 0xD8
-		i[12] = 0x7D
+		i[10] = 0x00 // Right Stick state
+		i[11] = 0x00
+		i[12] = 0x00
 
 		i[13] = 0x80 // Vibrator
 	}
@@ -101,10 +92,10 @@ func (i InputReport) AckSetShipmentLowPowerState() {
 }
 
 // https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/spi_flash_notes.md
-func (i InputReport) AckSpiFlashRead(data []byte) {
-	lowEnd := data[0]
-	highEnd := data[1]
-	sectionRange := data[4]
+func (i InputReport) AckSpiFlashRead(args []byte) {
+	lowEnd := args[0]
+	highEnd := args[1]
+	sectionRange := args[4]
 
 	i[14] = 0x90               // ACK
 	i[15] = byte(SpiFlashRead) // Subcommand Reply
@@ -132,34 +123,17 @@ func (i InputReport) AckSpiFlashRead(data []byte) {
 		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	} else if lowEnd == 0x3D && highEnd == 0x60 {
 		// Factory configuration & calibration 2
-		leftCalibration := []byte{
-			0xBA, 0xF5, 0x62,
-			0x6F, 0xC8, 0x77,
-			0xED, 0x95, 0x5B}
-		rightCalibration := []byte{
-			0x16, 0xD8, 0x7D,
-			0xF2, 0xB5, 0x5F,
-			0x86, 0x65, 0x5E}
-		copy(i[21:30], leftCalibration)
-		copy(i[30:39], rightCalibration)
-		replaceSlice(i[:], 39, 39+int(sectionRange)-len(leftCalibration)-len(rightCalibration), 0xFF)
+		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	} else if lowEnd == 0x20 && highEnd == 0x60 {
 		// Factory configuration & calibration 1
 		replaceSlice(i[:], 21, 21+int(sectionRange), 0xFF)
 	}
 }
 
-func (i InputReport) AckSetNfcMcuConfig() {
+func (i InputReport) AckSetNfcMcuConfig(data []byte) {
 	i[14] = 0xA0                  // ACK
 	i[15] = byte(SetNfcMcuConfig) // Subcommand Reply
 
-	data := []byte{
-		0x01, 0x00, 0xFF, 0x00, 0x08, 0x00,
-		0x1B, 0x01, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0xC8}
 	copy(i[16:16+len(data)], data)
 }
 
@@ -174,7 +148,6 @@ func (i InputReport) AckSetPlayerLights() {
 }
 
 func (i InputReport) AckEnableImu() {
-	// TODO: Toggle IMU
 	i[14] = 0x80            // ACK
 	i[15] = byte(EnableImu) // Subcommand Reply
 }
@@ -182,6 +155,10 @@ func (i InputReport) AckEnableImu() {
 func (i InputReport) AckEnableVibration() {
 	i[14] = 0x82                  // ACK
 	i[15] = byte(EnableVibration) // Subcommand Reply
+}
+
+func (i InputReport) UpdateChecksum(checksum byte) {
+	i[len(i)-1] = checksum
 }
 
 func (i InputReport) String() string {

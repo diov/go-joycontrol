@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	C "dio.wtf/joycontrol/joycontrol/controller"
 	"dio.wtf/joycontrol/joycontrol/log"
 	R "dio.wtf/joycontrol/joycontrol/report"
 	"github.com/godbus/dbus/v5"
@@ -28,39 +29,37 @@ const (
 type Server struct {
 	device     *Device
 	protocol   *Protocol
-	controller *Controller
+	controller *C.Controller
+	mac        net.HardwareAddr
 
-	needWatch      bool
-	reportReceived bool
-	stateUpdated   bool
-	mux            sync.RWMutex
-
-	freqChan chan time.Duration
+	needWatch    bool
+	stateUpdated bool
+	mux          sync.RWMutex
 
 	output R.OutputReport
 }
 
-func NewServer(controller *Controller) *Server {
+func NewServer(controller *C.Controller) *Server {
 	device, _ := NewDevice()
-	protocol := NewProtocol()
+	addr, _ := device.GetAddress()
+	mac, _ := net.ParseMAC(addr)
+	protocol := NewProtocol(mac)
 	return &Server{
 		device:     device,
 		protocol:   protocol,
 		controller: controller,
+		mac:        mac,
 		output:     make([]byte, R.OutputReportLength),
 	}
 }
 
 func (s *Server) Start() {
 	toggleCleanBluez(true)
-	addr, _ := s.device.GetAddress()
-	mac, _ := net.ParseMAC(addr)
 
 	if err := s.Setup(); nil != err {
 		log.Error(err)
 		return
 	}
-	s.protocol.Setup(mac)
 	itr, ctrl := s.Connect()
 	go s.Run(itr, ctrl)
 }
@@ -126,14 +125,15 @@ func (s *Server) Connect() (int, int) {
 	}
 
 	// Send an empty input report to the Switch to prompt a reply
-	input := s.protocol.generateStandardReport()
+	input := s.protocol.generateStandardReport(s.controller)
 	s.unixWrite(itr, input)
 
+	reportReceived := false
 	timer := time.NewTimer(time.Second * 1)
 	for range timer.C {
 		// Switch responds to packets slower during pairing
 		// Pairing cycle responds optimally on a 15Hz loop
-		if !s.reportReceived {
+		if !reportReceived {
 			timer.Reset(time.Second * 1)
 		} else {
 			timer.Reset(time.Second / 15)
@@ -149,25 +149,24 @@ func (s *Server) Connect() (int, int) {
 			case errors.Is(err, syscall.EAGAIN),
 				errors.Is(err, R.ErrBadLengthData),
 				errors.Is(err, R.ErrMalformedData),
-				errors.Is(err, R.ErrUnknownOutputId),
-				errors.Is(err, R.ErrUnknownSubcommand):
-				input = s.protocol.generateStandardReport()
+				errors.Is(err, R.ErrUnknownOutputId):
+				input = s.protocol.generateStandardReport(s.controller)
 			default:
 				log.ErrorF("error reading output report: %v", err)
 				continue
 			}
 		} else {
-			s.reportReceived = true
+			reportReceived = true
 			switch s.output.Id() {
 			case R.RumbleAndSubcommand:
-				input = s.protocol.processSubcommandReport(s.output)
+				input = s.protocol.processSubcommandReport(s.controller, s.output)
 			default:
-				input = s.protocol.generateStandardReport()
+				input = s.protocol.generateStandardReport(s.controller)
 			}
 		}
 		s.unixWrite(itr, input)
 
-		if s.protocol.vibrationEnabled && s.protocol.playerNumber {
+		if s.controller.VibrationEnabled && s.controller.PlayerNumber {
 			log.Debug("Switch connected")
 			break
 		}
@@ -182,45 +181,43 @@ func (s *Server) Run(itr, ctrl int) {
 	timer := time.NewTimer(freq)
 	defer timer.Stop()
 
-	for {
-		select {
-		case <-timer.C:
-			tick++
-			timer.Reset(freq)
+	for range timer.C {
+		tick++
+		timer.Reset(freq)
 
-			var err error
-			var input *R.InputReport
-			if _, err = s.unixRead(itr, s.output); err == nil {
-				err = s.output.Validate()
-			}
-			if err != nil {
-				input = s.protocol.generateStandardReport()
-			} else {
-				switch s.output.Id() {
-				case R.RumbleAndSubcommand:
-					input = s.protocol.processSubcommandReport(s.output)
-					s.stateUpdated = true
-				case R.RumbleOnly, R.UpdateNFCPacket:
-					input = s.protocol.generateStandardReport()
-				case R.RequestNFCData:
-					// TODO: Handle NFC
-				}
-			}
-			if s.controller.dirty {
-				b := s.controller.dump()
-				input.SetButtonState(b)
+		var err error
+		var input *R.InputReport
+		if _, err = s.unixRead(itr, s.output); err == nil {
+			err = s.output.Validate()
+		}
+		if err != nil {
+			input = s.protocol.generateStandardReport(s.controller)
+		} else {
+			switch s.output.Id() {
+			case R.RumbleAndSubcommand:
+				input = s.protocol.processSubcommandReport(s.controller, s.output)
+				log.DebugF("MainLoop RumbleAndSubcommand: %s", s.output)
 				s.stateUpdated = true
+			case R.RumbleOnly, R.UpdateNfcPacket:
+				input = s.protocol.generateStandardReport(s.controller)
+			case R.RequestNfcData:
+				s.protocol.processNfcDataReport(s.controller, s.output)
+				log.DebugF("MainLoop RequestNFCData: %s", s.output)
+				continue
 			}
-			if s.stateUpdated {
-				_, err := s.unixWrite(itr, input)
-				log.DebugF("MainLoop Update %s %v", input, err)
-				s.stateUpdated = false
-			} else if tick >= 132 {
-				_, _ = s.unixWrite(itr, input)
-				tick = 0
-			}
-		case duration := <-s.freqChan:
-			freq = duration
+		}
+		if s.controller.Dirty {
+			b := s.controller.Dump()
+			input.SetButtonState(b)
+			s.stateUpdated = true
+		}
+		if s.stateUpdated {
+			_, err := s.unixWrite(itr, input)
+			log.DebugF("MainLoop Update %s %v", input, err)
+			s.stateUpdated = false
+		} else if tick >= 132 {
+			_, _ = s.unixWrite(itr, input)
+			tick = 0
 		}
 	}
 }

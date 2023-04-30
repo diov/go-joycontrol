@@ -1,10 +1,22 @@
-package joycontrol
+package controller
+
+import (
+	R "dio.wtf/joycontrol/joycontrol/report"
+)
 
 // https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md
 
 type Controller struct {
-	dirty bool
+	Mode R.InputReportMode
+
+	DeviceInfoRequired bool
+	ImuEnabled         bool
+	VibrationEnabled   bool
+	PlayerNumber       bool
+
+	Dirty bool
 	bs    *ButtonState
+	mcu   *MicroControllerUnit
 }
 
 func NewController() *Controller {
@@ -12,21 +24,37 @@ func NewController() *Controller {
 		bs: &ButtonState{
 			data: [3]byte{},
 		},
+		mcu: &MicroControllerUnit{
+			mode:       McuStandby,
+			powerState: McuSuspend,
+		},
 	}
 }
 
 func (c *Controller) Press(buttons ...string) {
-	c.dirty = true
+	c.Dirty = true
 	c.bs.press(buttons...)
 }
 
 func (c *Controller) Release(buttons ...string) {
-	c.dirty = true
+	c.Dirty = true
 	c.bs.release(buttons...)
 }
 
-func (c *Controller) dump() []byte {
-	c.dirty = false
+func (c *Controller) SetMcuState(state McuMode) {
+	c.mcu.SetState(state)
+}
+
+func (c *Controller) ToggleMcuPower(on bool) {
+	c.mcu.TogglePowerState(on)
+}
+
+func (c *Controller) McuState() []byte {
+	return c.mcu.StateData()
+}
+
+func (c *Controller) Dump() []byte {
+	c.Dirty = false
 	return c.bs.data[:]
 }
 

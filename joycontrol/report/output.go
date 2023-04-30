@@ -4,26 +4,21 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"golang.org/x/exp/slices"
 )
 
-type OutputReportId uint8
-
 const (
-	RumbleAndSubcommand OutputReportId = 0x01
-	UpdateNFCPacket     OutputReportId = 0x03
-	RumbleOnly          OutputReportId = 0x10
-	RequestNFCData      OutputReportId = 0x11
-	// UnknownOutputType   OutputReportId = 0x12
-
 	OutputReportHeader byte = 0xA2
 	OutputReportLength int  = 50
 )
 
+var outputReportIds = []OutputReportId{RumbleAndSubcommand, UpdateNfcPacket, RumbleOnly, RequestNfcData, UnknownOutputType}
+
 var (
-	ErrBadLengthData     = errors.New("receive bad length data")
-	ErrMalformedData     = errors.New("receive malformed data")
-	ErrUnknownOutputId   = errors.New("receive unknown output report id")
-	ErrUnknownSubcommand = errors.New("receive unknown subcommand")
+	ErrBadLengthData   = errors.New("receive bad length data")
+	ErrMalformedData   = errors.New("receive malformed data")
+	ErrUnknownOutputId = errors.New("receive unknown output report id")
 )
 
 // OutputReport represents report sent from the Switch to the Controller.
@@ -37,27 +32,8 @@ func (o OutputReport) Validate() error {
 		return ErrMalformedData
 	}
 	id := o.Id()
-	if id != RumbleAndSubcommand &&
-		id != RumbleOnly &&
-		id != RequestNFCData &&
-		id != UpdateNFCPacket {
+	if !slices.Contains(outputReportIds, id) {
 		return ErrUnknownOutputId
-
-	}
-	if id == RumbleAndSubcommand {
-		subcommand := o.Subcommand()
-		if subcommand != RequestDeviceInfo &&
-			subcommand != SetInputReportMode &&
-			subcommand != TriggerButtonsElapsedTime &&
-			subcommand != SetShipmentLowPowerState &&
-			subcommand != SpiFlashRead &&
-			subcommand != SetNfcMcuConfig &&
-			subcommand != SetNfcMcuState &&
-			subcommand != SetPlayerLights &&
-			subcommand != EnableImu &&
-			subcommand != EnableVibration {
-			return ErrUnknownSubcommand
-		}
 	}
 
 	return nil
@@ -72,13 +48,37 @@ func (o OutputReport) Subcommand() Subcommand {
 	return Subcommand(b)
 }
 
-func (o OutputReport) SubcommandData() []byte {
+func (o OutputReport) SubcommandArgs() []byte {
+	return o[12:]
+}
+
+func (o OutputReport) McuCommand() McuCommand {
+	// OUTPUT 0x01(RumbleAndSubcommand) && Subcommand 0x21(SetNfcMcuConfig)
+	// OUTPUT 0x11(RequestNfcData)
+	if o.Id() == RumbleAndSubcommand && o.Subcommand() == SetNfcMcuConfig {
+		return McuCommand(o[12])
+	}
+	return McuCommand(o[11])
+}
+
+func (o OutputReport) McuCommandArgs() []byte {
+	if o.Id() == RumbleAndSubcommand && o.Subcommand() == SetNfcMcuConfig {
+		return o[13:]
+	}
 	return o[12:]
 }
 
 func (o OutputReport) String() string {
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("--- %s Msg ---", o.Subcommand().String()))
+	if o.Id() == RumbleAndSubcommand {
+		if o.Subcommand() == SetNfcMcuConfig {
+			builder.WriteString(fmt.Sprintf("--- %s(%s) Msg ---", o.Subcommand().String(), o.McuCommand().String()))
+		} else {
+			builder.WriteString(fmt.Sprintf("--- %s Msg ---", o.Subcommand().String()))
+		}
+	} else {
+		builder.WriteString(fmt.Sprintf("--- %s Msg ---", o.McuCommand().String()))
+	}
 	builder.WriteString("\nPayload:    ")
 	for _, p := range o[:11] {
 		builder.WriteString(fmt.Sprintf("0x%02X ", p))
